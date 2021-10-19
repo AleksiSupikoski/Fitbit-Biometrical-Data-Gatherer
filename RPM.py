@@ -121,7 +121,93 @@ class RPM(object):
         final_df['date'] = final_df['date'] + hoursDelta + minutesDelta + secondsDelta
         return final_df.drop(columns=['time'])
     
-    '''
+    ## Returns tuple of dataframes, first containing data about time spent in different sleep modes (rem, awake, light...)
+    ## As a second dataframe it returns sleepmode at exact minute
+    def get_sleep(self, s_date, e_date):
+
+        allDates = pd.date_range(start=s_date, end = e_date)
+        date_list = []
+        df_list = []
+        stages_df_list = []
+
+        allDates = pd.date_range(start=s_date, end = e_date)
+
+        for oneDate in allDates:
+            
+            oneDate = oneDate.date().strftime("%Y-%m-%d")
+            
+            oneDayData = self.auth2_client.sleep(date=oneDate)
+            
+            # get number of minutes for each stage of sleep and such. 
+            #stages_df = pd.DataFrame(oneDayData['summary'])
+            #The above didn't work.
+            oneDayData = json.loads(json.dumps(oneDayData))
+            stages_df = pd.json_normalize(oneDayData['summary'])
+
+            #This "if" handles the case, if there is no sleepdata (sleepdata is empty)
+            if (not oneDayData['sleep']):
+                nodata = {'dateTime':[np.nan], 'value':[np.nan], 'date':[oneDate] }
+                df = pd.DataFrame(nodata)
+            else:
+                df = pd.DataFrame(oneDayData['sleep'][0]['minuteData'])
+
+            date_list.append(oneDate)
+            df_list.append(df)
+            stages_df_list.append(stages_df)
+            
+        final_df_list = []
+
+        final_stages_df_list = []
+
+        for date, df, stages_df in zip(date_list, df_list, stages_df_list):
+
+            if len(df) == 0:
+                continue
+            
+            df.loc[:, 'date'] = pd.to_datetime(date)
+            
+            stages_df.loc[:, 'date'] = pd.to_datetime(date)
+            
+            final_df_list.append(df)
+            final_stages_df_list.append(stages_df)
+
+        final_df = pd.concat(final_df_list, axis = 0)
+
+        final_stages_df = pd.concat(final_stages_df_list, axis = 0)
+        columns = final_stages_df.columns[~final_stages_df.columns.isin(['date'])].values
+        pd.concat([final_stages_df[columns] + 2, final_stages_df[['date']]], axis = 1)
+        return (final_df, final_stages_df)
+    
+    ## Returns activity level per minute.
+    ## Level field reflects calculated activity level for that time period ( 0 - sedentary; 1 - lightly active; 2 - fairly active; 3 - very active.)
+    def get_activity(self, s_date, e_date):
+        date_list = []
+        df_list = []
+        allDates = pd.date_range(start=s_date, end = e_date)
+
+        for oneDate in allDates:
+            oneDate = oneDate.date().strftime("%Y-%m-%d")
+            oneDayData = self.auth2_client.intraday_time_series('activities/calories', base_date=oneDate, detail_level='1min')
+            df = pd.DataFrame(oneDayData['activities-calories-intraday']['dataset'])
+            date_list.append(oneDate)
+            df_list.append(df)
+
+        final_df_list = []
+
+        for date, df in zip(date_list, df_list):
+            if len(df) == 0:
+                continue
+            df.loc[:, 'date'] = pd.to_datetime(date)
+            final_df_list.append(df)
+
+        final_df = pd.concat(final_df_list, axis = 0)
+        hoursDelta = pd.to_datetime(final_df.loc[:, 'time']).dt.hour.apply(lambda x: datetime.timedelta(hours = x))
+        minutesDelta = pd.to_datetime(final_df.loc[:, 'time']).dt.minute.apply(lambda x: datetime.timedelta(minutes = x))
+        secondsDelta = pd.to_datetime(final_df.loc[:, 'time']).dt.second.apply(lambda x: datetime.timedelta(seconds = x))
+
+        final_df['date'] = final_df['date'] + hoursDelta + minutesDelta + secondsDelta
+        return final_df.drop(columns=['time', 'mets', 'value'])
+'''
     Other stuff that can be pulled with intraday-time-series:
     activities/calories
     activities/steps
@@ -149,95 +235,25 @@ class RPM(object):
     but FitBit does notexplain anywhere what is considered E.g. "very active", 
 
     https://dev.fitbit.com/build/reference/web-api/activity/#activity-types
-    '''
-    ## Returns tuple of dataframes, first containing data about time spent in different sleep modes (rem, awake, light...)
-    ## As a second dataframe it returns sleepmode at exact minute
-    def get_sleep(self, s_date, e_date):
-
-        allDates = pd.date_range(start=s_date, end = e_date)
-        date_list = []
-        df_list = []
-        stages_df_list = []
-
-        allDates = pd.date_range(start=s_date, end = e_date)
-
-        for oneDate in allDates:
-            
-            oneDate = oneDate.date().strftime("%Y-%m-%d")
-            
-            oneDayData = self.auth2_client.sleep(date=oneDate)
-            
-            # get number of minutes for each stage of sleep and such. 
-            #stages_df = pd.DataFrame(oneDayData['summary'])
-            #The above didn't work.
-            oneDayData = json.loads(json.dumps(oneDayData))
-            stages_df = pd.json_normalize(oneDayData['summary'])
-
-            #This "if" handles the case, if there is no sleepdata (sleepdata is empty)
-            if (not oneDayData['sleep']):
-                #print("no data")
-                nodata = {'dateTime':[np.nan], 'value':[np.nan], 'date':[oneDate] }
-                df = pd.DataFrame(nodata)
-                #print(df)
-
-            else:
-                df = pd.DataFrame(oneDayData['sleep'][0]['minuteData'])
-            #print("ONEDAYDATA:")
-            #print(oneDayData)
-            date_list.append(oneDate)
-            
-            df_list.append(df)
-            #print("DF:")
-            #print(df)
-            #print("stages:")
-            #print(stages_df)
-            
-            stages_df_list.append(stages_df)
-            
-        final_df_list = []
-
-        final_stages_df_list = []
-
-        for date, df, stages_df in zip(date_list, df_list, stages_df_list):
-
-            if len(df) == 0:
-                continue
-            
-            df.loc[:, 'date'] = pd.to_datetime(date)
-            
-            stages_df.loc[:, 'date'] = pd.to_datetime(date)
-            
-            final_df_list.append(df)
-            final_stages_df_list.append(stages_df)
-
-
-        #print(final_df_list)
-        final_df = pd.concat(final_df_list, axis = 0)
-
-        final_stages_df = pd.concat(final_stages_df_list, axis = 0)
-        columns = final_stages_df.columns[~final_stages_df.columns.isin(['date'])].values
-        pd.concat([final_stages_df[columns] + 2, final_stages_df[['date']]], axis = 1)
-        return (final_df, final_stages_df)
-
+'''
 
 
 if __name__ == "__main__":
-    print("test1")
     rpm = RPM()
 
     # Get data betveen dates "s" and "e"
     s = pd.datetime(year = 2021, month = 10, day = 11)
     e = pd.datetime.today().date() - datetime.timedelta(days=1)
 
-    steps = rpm.get_steps(s, e)
+    #steps = rpm.get_steps(s, e)
     #print(rpm.get_hrate(s, e))
     #print(rpm.get_calories(s, e))
     #sleepdata = rpm.get_sleep(s, e)
     #print(sleepdata[0])
     #print(sleepdata[1])
 
+    activity = rpm.get_activity(s,e)
     # A way of exporting dataframe to csv file:
-    
-    filename = 'step_data'
-    steps.to_csv(filename + '.csv', index = False)
+    filename = 'activity_data'
+    activity.to_csv(filename + '.csv', index = False)
     
