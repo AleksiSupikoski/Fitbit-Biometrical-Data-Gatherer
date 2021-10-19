@@ -1,2 +1,2 @@
 # RPMS
-Remote patient monitoring system dev
+Getting data from a Fitbit smartwatch
