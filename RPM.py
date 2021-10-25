@@ -1,24 +1,19 @@
+from typing import get_type_hints
 import gather_keys_oauth2 as Oauth2
 import fitbit
 import pandas as pd 
 import datetime
-import matplotlib.pyplot as plt
 import json
 import numpy as np
-
+'''
 CLIENT_ID='23BKW8'
 CLIENT_SECRET='bf2cc5685c5012279cfa9753228c0d7c'
-
 '''
-
-final_df.tail()
-filename = 'all_intradata'
-final_df.to_csv(filename + '.csv', index = False)
-
-'''
-
-class RPM(object):
-    def __init__(self):
+# Watch_Request object halndles authentification and http reguests for biometrical data.
+# get-functions try to handle the cases when no data is not available (E.g. watch was not worn) by filling nodata with NaN's
+# With the API, you can do up to 150 http requests per user / hour. If you doo too many you are going to get a HTTPTooManyRequests -error.
+class Watch_Request(object):
+    def __init__(self, CLIENT_ID, CLIENT_SECRET):
             server=Oauth2.OAuth2Server(CLIENT_ID, CLIENT_SECRET)
             server.browser_authorize()
             ACCESS_TOKEN=str(server.fitbit.client.session.token['access_token'])
@@ -188,6 +183,7 @@ class RPM(object):
         for oneDate in allDates:
             oneDate = oneDate.date().strftime("%Y-%m-%d")
             oneDayData = self.auth2_client.intraday_time_series('activities/calories', base_date=oneDate, detail_level='1min')
+            
             df = pd.DataFrame(oneDayData['activities-calories-intraday']['dataset'])
             date_list.append(oneDate)
             df_list.append(df)
@@ -207,7 +203,46 @@ class RPM(object):
 
         final_df['date'] = final_df['date'] + hoursDelta + minutesDelta + secondsDelta
         return final_df.drop(columns=['time', 'mets', 'value'])
-'''
+
+    def get_resting_heart(self, s_date, e_date):
+        # startTime is first date of data that I want. 
+        # You will need to modify for the date you want your data to start
+        date_list = []
+        df_list = []
+        allDates = pd.date_range(start=s_date, end = e_date)
+        for oneDate in allDates:
+            
+            oneDate = oneDate.date().strftime("%Y-%m-%d")
+            
+            oneDayData = self.auth2_client.intraday_time_series('activities/heart', base_date=oneDate, detail_level='1min')
+            try:
+                rhr = oneDayData['activities-heart'][0]['value']['restingHeartRate']
+            except KeyError:
+                rhr = np.nan
+            data = [[oneDate, rhr]]
+            df = pd.DataFrame(data, columns=['date', 'restingHeartRate'])#['restingHeartRate'])
+            date_list.append(oneDate)
+            df_list.append(df)
+        
+        final_df_list = []
+
+        for date, df in zip(date_list, df_list):
+            if len(df) == 0:
+                continue
+            df.loc[:, 'date'] = pd.to_datetime(date)
+            final_df_list.append(df)
+        
+        final_df = pd.concat(final_df_list, axis = 0)
+        '''
+        hoursDelta = pd.to_datetime(final_df.loc[:, 'time']).dt.hour.apply(lambda x: datetime.timedelta(hours = x))
+        minutesDelta = pd.to_datetime(final_df.loc[:, 'time']).dt.minute.apply(lambda x: datetime.timedelta(minutes = x))
+        secondsDelta = pd.to_datetime(final_df.loc[:, 'time']).dt.second.apply(lambda x: datetime.timedelta(seconds = x))
+        
+        final_df['date'] = final_df['date'] + hoursDelta + minutesDelta + secondsDelta
+        '''
+        return final_df#.drop(columns=['time', 'mets', 'value'])
+    
+    '''
     Other stuff that can be pulled with intraday-time-series:
     activities/calories
     activities/steps
@@ -235,25 +270,44 @@ class RPM(object):
     but FitBit does notexplain anywhere what is considered E.g. "very active", 
 
     https://dev.fitbit.com/build/reference/web-api/activity/#activity-types
-'''
-
+    '''
 
 if __name__ == "__main__":
-    rpm = RPM()
+
+    #Create object for Fitbit watch data extraction:
+    wr = Watch_Request(CLIENT_ID='23BKW8', CLIENT_SECRET='bf2cc5685c5012279cfa9753228c0d7c')
 
     # Get data betveen dates "s" and "e"
     s = pd.datetime(year = 2021, month = 10, day = 11)
-    e = pd.datetime.today().date() - datetime.timedelta(days=1)
+    e = pd.datetime(year = 2021, month = 10, day = 25)
+    #pd.datetime.today().date() - datetime.timedelta(days=1)
 
-    #steps = rpm.get_steps(s, e)
-    #print(rpm.get_hrate(s, e))
-    #print(rpm.get_calories(s, e))
-    #sleepdata = rpm.get_sleep(s, e)
-    #print(sleepdata[0])
-    #print(sleepdata[1])
+    steps = wr.get_steps(s, e)
+    print('got steps')
+    hrate = wr.get_hrate(s, e)
+    print('got hrate')
+    calories = wr.get_calories(s, e)
+    print('got cals')
+    sleepdata = wr.get_sleep(s, e)
+    print('got sleep')
+    activity = wr.get_activity(s,e)
+    print('got act')
+    resting_h = wr.get_resting_heart(s, e)
+    print('got resting_h')
 
-    activity = rpm.get_activity(s,e)
     # A way of exporting dataframe to csv file:
-    filename = 'activity_data'
+    filename = 'activity'
     activity.to_csv(filename + '.csv', index = False)
+
+    filename = 'hrate'
+    hrate.to_csv(filename + '.csv', index = False)
+
+    filename = 'calories'
+    calories.to_csv(filename + '.csv', index = False)
+
+    filename = 'sleepdata'
+    sleepdata.to_csv(filename + '.csv', index = False)
+
+    filename = 'resting_h'
+    resting_h.to_csv(filename + '.csv', index = False)
     
