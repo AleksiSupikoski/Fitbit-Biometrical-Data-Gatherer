@@ -118,6 +118,10 @@ class Watch_Request(object):
     
     ## Returns tuple of dataframes, first containing data about time spent in different sleep modes (rem, awake, light...)
     ## As a second dataframe it returns sleepmode at exact minute
+
+    ## Super pissed with FIBIT, they changed their API: no more REM stage detection :( 
+    ## -Looks like Fitbit doesn't believe that REM detection even works or is accurate enough.
+    ## 1 ("asleep"), 2 ("restless"), or 3 ("awake").
     def get_sleep(self, s_date, e_date):
 
         allDates = pd.date_range(start=s_date, end = e_date)
@@ -137,8 +141,10 @@ class Watch_Request(object):
             #stages_df = pd.DataFrame(oneDayData['summary'])
             #The above didn't work.
             oneDayData = json.loads(json.dumps(oneDayData))
+            print(oneDayData)
             stages_df = pd.json_normalize(oneDayData['summary'])
-
+            print("aoaooaoaoAOAOAOAOAOAOOOOOOOOOOAOOAOAOAOAOAOAOAOAOAOAOAOAOAAO")
+            print(stages_df)
             #This "if" handles the case, if there is no sleepdata (sleepdata is empty)
             if (not oneDayData['sleep']):
                 nodata = {'dateTime':[np.nan], 'value':[np.nan], 'date':[oneDate] }
@@ -278,36 +284,43 @@ if __name__ == "__main__":
     wr = Watch_Request(CLIENT_ID='23BKW8', CLIENT_SECRET='bf2cc5685c5012279cfa9753228c0d7c')
 
     # Get data betveen dates "s" and "e"
-    s = pd.datetime(year = 2021, month = 10, day = 11)
-    e = pd.datetime(year = 2021, month = 10, day = 25)
+    s = pd.datetime(year = 2021, month = 11, day = 16)
+    e = pd.datetime(year = 2021, month = 11, day = 18)
     #pd.datetime.today().date() - datetime.timedelta(days=1)
 
-    steps = wr.get_steps(s, e)
-    print('got steps')
-    hrate = wr.get_hrate(s, e)
-    print('got hrate')
-    calories = wr.get_calories(s, e)
-    print('got cals')
+    #steps = wr.get_steps(s, e)
+    #print('got steps')
+    
+    #hrate = wr.get_hrate(s, e)
+    #print('got hrate')
+    #calories = wr.get_calories(s, e)
+    #print('got cals')
     sleepdata = wr.get_sleep(s, e)
     print('got sleep')
-    activity = wr.get_activity(s,e)
-    print('got act')
-    resting_h = wr.get_resting_heart(s, e)
-    print('got resting_h')
+    #activity = wr.get_activity(s,e)
+    #print('got act')
+    #resting_h = wr.get_resting_heart(s, e)
+    #print('got resting_h')
 
-    # A way of exporting dataframe to csv file:
-    filename = 'activity'
-    activity.to_csv(filename + '.csv', index = False)
 
-    filename = 'hrate'
-    hrate.to_csv(filename + '.csv', index = False)
-
-    filename = 'calories'
-    calories.to_csv(filename + '.csv', index = False)
-
-    filename = 'sleepdata'
-    sleepdata.to_csv(filename + '.csv', index = False)
-
-    filename = 'resting_h'
-    resting_h.to_csv(filename + '.csv', index = False)
     
+    # A way of exporting dataframe to csv file:
+    #filename = 'activity'
+    #activity.to_csv(filename + '.csv', index = False)
+
+    #filename = 'hrate'
+    #hrate.to_csv(filename + '.csv', index = False)
+
+    #filename = 'calories'
+    #calories.to_csv(filename + '.csv', index = False)
+
+    #filename = 'sleepdata'
+    #sleepdata[0].to_csv(filename + '.csv', index = False)
+    #filename = 'sleepdata_2'
+    #sleepdata[1].to_csv(filename + '.csv', index = False)
+
+    #filename = 'resting_h'
+    #resting_h.to_csv(filename + '.csv', index = False)
+
+    #filename = 'steps'
+    #steps.to_csv(filename + '.csv', index = False)
